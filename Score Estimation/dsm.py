@@ -77,8 +77,8 @@ def train(data, epochs=3000, batch_size=1024, K=4):
 
         # DSM loss on noisy samples
         eps = torch.randn_like(batch) * noise_scale
-        x_noisy = batch + eps
-
+        x_noisy = batch + eps 
+        
         score_pred = model(x_noisy)
         target = -eps / (noise_scale**2)
 

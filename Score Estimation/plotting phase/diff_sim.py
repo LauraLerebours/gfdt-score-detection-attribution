@@ -20,7 +20,7 @@ def simulate_time_series(F, a, b, c, sigma, dt, num_steps):
 #     drift = F + a*x[i] + b*(x[i]**2) - c*(x[i]**3)
 #     diffusion = sigma * np.sqrt(dt) * np.random.randn()
 #     x[i+1] = x[i] + drift * dt + diffusion
-
+# test for pushing to git to make sure link still works
 for i in range(1, 10):
     x = simulate_time_series(F, a, b, c, sigma, dt, num_steps)
     plt.plot(x, label=f'n={i} steps')
