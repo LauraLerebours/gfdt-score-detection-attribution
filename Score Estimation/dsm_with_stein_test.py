@@ -1,4 +1,4 @@
-from dsm import generate_scalar_data, ScoreNet, stein_loss, train
+from dsm_with_stein import generate_scalar_data, ScoreNet, stein_loss, train
 import torch
 import torch.nn as nn
 import numpy as np
