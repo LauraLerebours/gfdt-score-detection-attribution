@@ -70,6 +70,7 @@ def train(data, epochs=3000, batch_size=1024, K=4):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+
         if epoch % 500 == 0:
             print(f"Epoch {epoch}, DSM Loss: {loss_dsm.item():.4f}")
     return model

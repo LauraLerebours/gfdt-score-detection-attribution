@@ -25,6 +25,7 @@ def generate_scalar_data(F, a, b, c, sigma, dt, steps):
         diffusion = sigma * np.sqrt(dt) * torch.randn(1)
         curr_x = curr_x + drift * dt + diffusion
         x[i] = curr_x
+    print(len(x))
     return x.view(-1, 1)
 
 # data = generate_scalar_data(F, a, b, c, sigma, dt, num_steps)
@@ -44,7 +45,7 @@ class ScoreNet(nn.Module):
     def forward(self, x):
         return self.net(x)
 
-def stein_loss(model, clean_batch, mu, sigma_x, K=4):
+def stein_loss(model, clean_batch, mu, sigma_x, K=6):
     z = (clean_batch - mu) / sigma_x
     score = model(clean_batch)
     residuals = []
@@ -57,7 +58,7 @@ def stein_loss(model, clean_batch, mu, sigma_x, K=4):
         rk = (z**k * score).mean() + (k / sigma_x) * (z**(k - 1)).mean()
         residuals.append(rk**2)
     return sum(residuals), residuals
-def train(data, epochs=3000, batch_size=1024, K=4):
+def train(data, lambda_max = .7, epochs=3000, batch_size=1024, K=4):
     model = ScoreNet()
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
     noise_scale = 0.05
@@ -67,10 +68,8 @@ def train(data, epochs=3000, batch_size=1024, K=4):
     sigma_x = data.std()
 
     # Stein schedule
-    E0 = 1000          # DSM only until this epoch
-    E1 = 2000          # ramp finishes here
-    lambda_max = 0.1   # tune this
-
+    E0 = 0          # DSM only until this epoch
+    E1 = 1000          # ramp finishes here
     for epoch in range(epochs + 1):
         perm = torch.randperm(data.size(0))
         batch = data[perm[:batch_size]]
@@ -109,9 +108,8 @@ def train(data, epochs=3000, batch_size=1024, K=4):
                 f"Stein: {loss_stein.item():.4f} | "
                 f"lambda: {lambda_stein:.4f} | "
                 f"residuals: {residual_vals}"
-            )
-
-    return model
+                )
+    return model,perm
 # G parameter mentioned in paper OLDDD
 # def train(data, epochs=2000, batch_size=1024):
 #     model = ScoreNet()
