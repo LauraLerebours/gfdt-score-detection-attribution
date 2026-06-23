@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
-import dsm_with_stein
+from Score_Estimation.dsm_with_stein import generate_scalar_data, ScoreNet, stein_loss, train
 
 F, a, b, c, s = 0.0, 1.0, 0.0, 1.0, 0.5
 dt = 0.05
