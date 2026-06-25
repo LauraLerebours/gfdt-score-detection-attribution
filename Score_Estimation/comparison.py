@@ -27,8 +27,9 @@ K = 4
 #     if stein_new < stein_old:
 #         count+=1
 # print(f"Stein model is better {count}% of the time")
-with_stein_model,perm = dsm_with_stein.train(data, epochs=3000, batch_size=1024, K=K)
-dsm_only_model = dsm_no_stein.train(data, epochs=3000, batch_size=1024, K=K)
+# comparing stein loss of 2 models
+with_stein_model,perm = dsm_with_stein.train(data)
+dsm_only_model = dsm_no_stein.train(data)
 with torch.no_grad():
     stein_old, residuals_old = dsm_with_stein.stein_loss(dsm_only_model, data[perm[:1024]], mu, sigma_x, K=K)
     stein_new, residuals_new = dsm_with_stein.stein_loss(with_stein_model, data[perm[:1024]], mu, sigma_x, K=K)

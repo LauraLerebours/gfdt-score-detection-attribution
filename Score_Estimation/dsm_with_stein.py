@@ -99,7 +99,7 @@ def train(data, lambda_max = .7, epochs=3000, batch_size=1024, K=4):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-
+        curr_loss = loss.item()
         if epoch % 500 == 0:
             residual_vals = [r.item() for r in residuals]
             print(
@@ -109,7 +109,7 @@ def train(data, lambda_max = .7, epochs=3000, batch_size=1024, K=4):
                 f"lambda: {lambda_stein:.4f} | "
                 f"residuals: {residual_vals}"
                 )
-    return model,perm
+    return model,perm, curr_loss
 # G parameter mentioned in paper OLDDD
 # def train(data, epochs=2000, batch_size=1024):
 #     model = ScoreNet()
