@@ -3,9 +3,9 @@ import matplotlib.pyplot as plt
 import torch
 import dsm_with_stein
 
-F, a, b, c, s = 0.0, 1.0, 0.0, 1.0, 0.5
+s = 0.5
 dt = 0.05
-N_real = 310
+N_real = 500
 n_ens = 1000
 n_steps = 100
 eps = 0.06
@@ -14,6 +14,9 @@ eps_vals = [0.02, 0.04, 0.06, 0.08, 0.10, 0.12, 0.14, 0.16, 0.18, 0.20]
 np.random.seed(42)
 torch.manual_seed(42)
 
+def drift(x):
+    F, a, b, c = 0.0, 1.0, 0.0, 1.0
+    return  F + a*x + b*x**2 - c*x**3
 
 #long trajectory and analytical score
 N_long = 500_000
@@ -21,9 +24,9 @@ x = 0.0
 traj = np.zeros(N_long)
 score_exact = np.zeros(N_long)
 for i in range(N_long):
-    x += (F + a*x + b*x**2 - c*x**3)*dt + s*np.sqrt(dt)*np.random.randn()
+    x += (drift(x))*dt + s*np.sqrt(dt)*np.random.randn()
     traj[i] = x
-    score_exact[i] = 2*(F + a*x + b*x**2 - c*x**3) / s**2
+    score_exact[i] = 2*(drift(x)) / s**2
 
 #multiple means for Y_a(t)
 mu1 = traj.mean()
@@ -35,19 +38,30 @@ m2 = (traj**2).mean()   #raw second moment for conjugate observables
 traj_thin = traj[::200]
 
 # learned score
+def stein_calibrate_score(x, score):
+    z = x - x.mean()
+    # enforce <score> = 0
+    score = score - score.mean()
+    # enforce <(X-mu) score> = -1
+    score = score * (-1.0 / np.mean(z * score))
+
+    return score
+
 data_tensor = torch.tensor(traj, dtype=torch.float32).view(-1, 1)
 score_model, _ = dsm_with_stein.train(data_tensor, lambda_max=0.7, epochs=3000, batch_size=1024, K=4)
 score_model.eval()
 with torch.no_grad():
     score_dsm = score_model(data_tensor).numpy().flatten()
-# score_dsm = stein_calibrate_score(traj, score_dsm)
+score_dsm = stein_calibrate_score(traj, score_dsm)
+score_exact = stein_calibrate_score(traj, score_exact)
 
-#state-dependent observables
-B_exact = [-1.0 - traj*score_exact, -2.0*traj - (traj**2 - m2)*score_exact]
-B_dsm   = [-1.0 - traj*score_dsm, -2.0*traj - (traj**2 - m2)*score_dsm]
+#state-dependent conjugate observables
+traj_centered = traj - mu1
+B_exact = [-1.0 - traj_centered*score_exact, -2.0*traj_centered - (traj_centered**2 - m2)*score_exact]
+B_dsm   = [-1.0 - traj_centered*score_dsm, -2.0*traj_centered - (traj_centered**2 - m2)*score_dsm]
 
 #kernels
-observables = [traj, (traj-mu1)**2, (traj-mu1)**3]
+observables = [traj_centered, traj_centered**2 - mu2, traj_centered**3 - mu3]
 R_exact = np.zeros((3, 2, n_steps))
 R_dsm   = np.zeros((3, 2, n_steps))
 for a in range(3):
@@ -70,8 +84,8 @@ for i in range(N_real):
     for t in range(n_steps):
         noise_a = s*np.sqrt(dt)*np.random.randn(n_ens)
         noise_b = s*np.sqrt(dt)*np.random.randn(n_ens)
-        x_a += (F + a*x_a + b*x_a**2 - c*x_a**3)*dt + noise_a
-        x_b += (F + a*x_b + b*x_b**2 - c*x_b**3)*dt + noise_b
+        x_a += (drift(x_a))*dt + noise_a
+        x_b += (drift(x_b))*dt + noise_b
         Y_noise[0, t] = x_a.mean() - x_b.mean()
         Y_noise[1, t] = ((x_a-mu1)**2).mean() - ((x_b-mu1)**2).mean()
         Y_noise[2, t] = ((x_a-mu1)**3).mean() - ((x_b-mu1)**3).mean()
@@ -102,13 +116,14 @@ for i in range(N_real):
     for t in range(n_steps):
         noise = s*np.sqrt(dt)*np.random.randn(n_ens)
         forcing = h1_true[t]*xp + h2_true[t]*(xp**2 - m2)   #state-dependent
-        xu += (F + a*xu + b*xu**2 - c*xu**3)*dt + noise
-        xp += (F + a*xp + b*xp**2 - c*xp**3 + forcing)*dt + noise
-        Y[0, t] = xp.mean() - xu.mean()
+        xu += (drift(xu))*dt + noise
+        xp += (drift(xp) + forcing)*dt + noise
+        Y[0, t] = xp.mean() - xu.mean() 
         Y[1, t] = ((xp-mu1)**2).mean() - ((xu-mu1)**2).mean()
         Y[2, t] = ((xp-mu1)**3).mean() - ((xu-mu1)**3).mean()
     Y_all[i] = np.concatenate([Y[0], Y[1], Y[2]])
 Y = Y_all.mean(axis=0)
+
 #block-Toeplitz operator
 def build_operator(R):
     K = np.zeros((3*n_steps, n_steps))
