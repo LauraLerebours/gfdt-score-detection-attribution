@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 
 # 1. Model Parameters (Based on Section 3.1 and SI Appendix)
-F, a, b, c = 0.0, 1.0, 0.0, 1.0  
+F, a, b, c = 0.0, 1.0, 0.0, 1.0
 # F, a, b, c = 0.5, 1.0, -0.5, 0.5  # Example coefficients for non-Gaussian behavior
 sigma = 0.5
 dt = 0.01
@@ -20,7 +20,7 @@ def generate_scalar_data(F, a, b, c, sigma, dt, steps):
     curr_x = torch.tensor(0.0)
     for i in range(steps):
         # Deterministic drift: F(x) = F + ax + bx^2 - cx^3
-        drift = F + a*curr_x + b*(curr_x**2) - c*(curr_x**3)
+        drift = F + a * curr_x + b * (curr_x**2) - c * (curr_x**3)
         # Stochastic diffusion
         diffusion = sigma * np.sqrt(dt) * torch.randn(1)
         curr_x = curr_x + drift * dt + diffusion
@@ -28,22 +28,22 @@ def generate_scalar_data(F, a, b, c, sigma, dt, steps):
     print(len(x))
     return x.view(-1, 1)
 
+
 # data = generate_scalar_data(F, a, b, c, sigma, dt, num_steps)
 
-# 3. KGMM-inspired Score Network 
+
+# 3. KGMM-inspired Score Network
 # The paper suggests KGMM for low-dimensional systems
 class ScoreNet(nn.Module):
     def __init__(self):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(1, 1024),
-            nn.ReLU(),
-            nn.Tanh(),
-            nn.ReLU(),
-            nn.Linear(1024, 1)
+            nn.Linear(1, 1024), nn.ReLU(), nn.Tanh(), nn.ReLU(), nn.Linear(1024, 1)
         )
+
     def forward(self, x):
         return self.net(x)
+
 
 def stein_loss(model, clean_batch, mu, sigma_x, K=6):
     z = (clean_batch - mu) / sigma_x
@@ -55,10 +55,12 @@ def stein_loss(model, clean_batch, mu, sigma_x, K=6):
     # k >= 1 constraints:
     # E[z^k s(X)] + (k/sigma_x) E[z^(k-1)] = 0
     for k in range(1, K + 1):
-        rk = (z**k * score).mean() + (k / sigma_x) * (z**(k - 1)).mean()
+        rk = (z**k * score).mean() + (k / sigma_x) * (z ** (k - 1)).mean()
         residuals.append(rk**2)
     return sum(residuals), residuals
-def train(data, lambda_max = .7, epochs=3000, batch_size=1024, K=4):
+
+
+def train(data, lambda_max=0.7, epochs=3000, batch_size=1024, K=4):
     model = ScoreNet()
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
     noise_scale = 0.05
@@ -68,20 +70,20 @@ def train(data, lambda_max = .7, epochs=3000, batch_size=1024, K=4):
     sigma_x = data.std()
 
     # Stein schedule
-    E0 = 0          # DSM only until this epoch
-    E1 = 1000          # ramp finishes here
+    E0 = 0  # DSM only until this epoch
+    E1 = 1000  # ramp finishes here
     for epoch in range(epochs + 1):
         perm = torch.randperm(data.size(0))
         batch = data[perm[:batch_size]]
 
         # DSM loss on noisy samples
         eps = torch.randn_like(batch) * noise_scale
-        x_noisy = batch + eps 
-        
+        x_noisy = batch + eps
+
         score_pred = model(x_noisy)
         target = -eps / (noise_scale**2)
 
-        loss_dsm = torch.mean((score_pred - target)**2)
+        loss_dsm = torch.mean((score_pred - target) ** 2)
 
         # Stein loss on clean samples
         loss_stein, residuals = stein_loss(model, batch, mu, sigma_x, K=K)
@@ -90,7 +92,7 @@ def train(data, lambda_max = .7, epochs=3000, batch_size=1024, K=4):
         if epoch < E0:
             lambda_stein = 0.0
         elif epoch <= E1:
-            lambda_stein = lambda_max * ((epoch - E0) / (E1 - E0))**2
+            lambda_stein = lambda_max * ((epoch - E0) / (E1 - E0)) ** 2
         else:
             lambda_stein = lambda_max
 
@@ -108,29 +110,31 @@ def train(data, lambda_max = .7, epochs=3000, batch_size=1024, K=4):
                 f"Stein: {loss_stein.item():.4f} | "
                 f"lambda: {lambda_stein:.4f} | "
                 f"residuals: {residual_vals}"
-                )
-    return model,perm, curr_loss
+            )
+    return model, perm, curr_loss
+
+
 # G parameter mentioned in paper OLDDD
 # def train(data, epochs=2000, batch_size=1024):
 #     model = ScoreNet()
 #     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-#     noise_scale = 0.05 
+#     noise_scale = 0.05
 #     for epoch in range(epochs + 1):
 #         perm = torch.randperm(data.size(0))
 #         batch = data[perm[:batch_size]]
-        
+
 #         eps = torch.randn_like(batch) * noise_scale
 #         x_noisy = batch + eps
-        
+
 #         score_pred = model(x_noisy)
 #         target = -eps / (noise_scale**2)
-        
+
 #         loss = torch.mean((score_pred - target)**2)
-        
+
 #         optimizer.zero_grad()
 #         loss.backward()
 #         optimizer.step()
-        
+
 #         if epoch % 500 == 0:
 #             print(f"Epoch {epoch} | Loss: {loss.item():.4f}")
 #     return model
@@ -141,19 +145,19 @@ def train(data, lambda_max = .7, epochs=3000, batch_size=1024, K=4):
 #     perm = torch.randperm(data.size(0))
 #     # Using a batch to speed up training
 #     batch = data[perm[:1024]]
-    
+
 #     eps = torch.randn_like(batch) * noise_scale
 #     x_noisy = batch + eps
-    
+
 #     score_pred = model(x_noisy)
 #     target = -eps / (noise_scale**2) # Ground truth score for Gaussian noise
-    
+
 #     loss = torch.mean((score_pred - target)**2)
-    
+
 #     optimizer.zero_grad()
 #     loss.backward()
 #     optimizer.step()
-    
+
 #     if epoch % 500 == 0:
 #         print(f"Epoch {epoch} | Loss: {loss.item():.4f}")
 
@@ -186,14 +190,14 @@ def train(data, lambda_max = .7, epochs=3000, batch_size=1024, K=4):
 #         # 1. Compute B(x) = -score(x) for the entire trajectory
 #         # We negate the score because B(x) = -d/dx log rho
 #         b_values = -score_func(data_series).flatten()
-        
+
 #     # 2. Prepare observable A(x) = x (normalized to zero mean)
 #     a_values = data_series.flatten() - data_series.mean()
-    
+
 #     # 3. Calculate correlation for different time lags
 #     lags = np.arange(max_lag)
 #     response = []
-    
+
 #     for lag in lags:
 #         # Correlation: Average of A(t+lag) * B(t)
 #         if lag == 0:
@@ -201,7 +205,7 @@ def train(data, lambda_max = .7, epochs=3000, batch_size=1024, K=4):
 #         else:
 #             corr = torch.mean(a_values[lag:] * b_values[:-lag])
 #         response.append(corr.item())
-        
+
 #     return lags, np.array(response)
 
 # # --- Execution ---

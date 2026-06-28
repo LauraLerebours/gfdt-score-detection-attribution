@@ -4,8 +4,9 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 import torch.nn as nn
+
 # 1. Model Parameters (Based on Section 3.1 and SI Appendix)
-F, a, b, c = 0.0, 1.0, 0.0, 1.0  
+F, a, b, c = 0.0, 1.0, 0.0, 1.0
 # F, a, b, c = 0.5, 1.0, -0.5, 0.5  # Example coefficients for non-Gaussian behavior
 sigma = 0.5
 dt = 0.01
@@ -28,11 +29,15 @@ K = 4
 #         count+=1
 # print(f"Stein model is better {count}% of the time")
 # comparing stein loss of 2 models
-with_stein_model,perm = dsm_with_stein.train(data)
+with_stein_model, perm = dsm_with_stein.train(data)
 dsm_only_model = dsm_no_stein.train(data)
 with torch.no_grad():
-    stein_old, residuals_old = dsm_with_stein.stein_loss(dsm_only_model, data[perm[:1024]], mu, sigma_x, K=K)
-    stein_new, residuals_new = dsm_with_stein.stein_loss(with_stein_model, data[perm[:1024]], mu, sigma_x, K=K)
+    stein_old, residuals_old = dsm_with_stein.stein_loss(
+        dsm_only_model, data[perm[:1024]], mu, sigma_x, K=K
+    )
+    stein_new, residuals_new = dsm_with_stein.stein_loss(
+        with_stein_model, data[perm[:1024]], mu, sigma_x, K=K
+    )
 
 print("DSM only Stein loss:", stein_old.item())
 print("DSM + Stein Stein loss:", stein_new.item())
