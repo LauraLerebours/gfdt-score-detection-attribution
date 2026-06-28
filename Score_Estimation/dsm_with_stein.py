@@ -60,7 +60,7 @@ def stein_loss(model, clean_batch, mu, sigma_x, K=6):
     return sum(residuals), residuals
 
 
-def train(data, lambda_max=0.7, epochs=3000, batch_size=1024, K=4):
+def train(data, lambda_max=0.7, epochs=3000, batch_size=2048, K=4):
     model = ScoreNet()
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
     noise_scale = 0.05

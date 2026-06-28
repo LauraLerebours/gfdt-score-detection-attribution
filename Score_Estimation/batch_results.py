@@ -1,3 +1,4 @@
+from holidays import ME
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -133,3 +134,14 @@ losses[2048] = {
     "mean": 385.0350311279297,
     "std": 7.699577485354344,
 }
+
+
+means = [losses[bs].get("mean") for bs in batch_sizes]
+stds = [losses[bs].get("std") for bs in batch_sizes]
+# Plotting the results
+plt.plot(batch_sizes, stds, marker="o")
+plt.xlabel("Batch Size")
+plt.ylabel("Std of Loss")
+plt.title("Std of Loss vs Batch Size")
+plt.xscale("log", base=2)
+plt.show()
