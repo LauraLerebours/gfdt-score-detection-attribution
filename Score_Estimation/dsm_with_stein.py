@@ -60,7 +60,7 @@ def stein_loss(model, clean_batch, mu, sigma_x, K=6):
     return sum(residuals), residuals
 
 
-def train(data, lambda_max=0.7, epochs=3000, batch_size=2048, K=4):
+def train(data, lambda_max=0.7, epochs=3000, batch_size=2048, K=4, E1 = 1000):
     model = ScoreNet()
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
     noise_scale = 0.05
@@ -71,7 +71,7 @@ def train(data, lambda_max=0.7, epochs=3000, batch_size=2048, K=4):
 
     # Stein schedule
     E0 = 0  # DSM only until this epoch
-    E1 = 1000  # ramp finishes here
+    # E1 = 1000  # ramp finishes here
     for epoch in range(epochs + 1):
         perm = torch.randperm(data.size(0))
         batch = data[perm[:batch_size]]
@@ -89,7 +89,7 @@ def train(data, lambda_max=0.7, epochs=3000, batch_size=2048, K=4):
         loss_stein, residuals = stein_loss(model, batch, mu, sigma_x, K=K)
 
         # Ramp Stein penalty
-        if epoch < E0:
+        if epoch <= E0:
             lambda_stein = 0.0
         elif epoch <= E1:
             lambda_stein = lambda_max * ((epoch - E0) / (E1 - E0)) ** 2
@@ -111,7 +111,7 @@ def train(data, lambda_max=0.7, epochs=3000, batch_size=2048, K=4):
                 f"lambda: {lambda_stein:.4f} | "
                 f"residuals: {residual_vals}"
             )
-    return model, perm, curr_loss
+    return model, curr_loss
 
 
 # G parameter mentioned in paper OLDDD
