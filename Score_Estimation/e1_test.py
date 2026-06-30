@@ -15,7 +15,7 @@ e1 = [0, 500, 1000, 1500, 2000, 2500, 3000]
 losses = []
 
 for i in range(10):
-    e = 1000 # Change the E1 value here
+    e = 3000 # Change the E1 value here
     print(f'Run {i + 1}/10')
     print(f"Training with E1 = {e}")
     model, curr_loss = dsm_with_stein.train(data, E1=e)
