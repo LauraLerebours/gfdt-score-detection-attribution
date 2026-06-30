@@ -60,7 +60,7 @@ def stein_loss(model, clean_batch, mu, sigma_x, K=6):
     return sum(residuals), residuals
 
 
-def train(data, lambda_max=0.7, epochs=3000, batch_size=2048, K=4, E1 = 1000):
+def train(data, lambda_max=0.7, epochs=3000, batch_size=2048, K=4):
     model = ScoreNet()
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
     noise_scale = 0.05
@@ -71,7 +71,7 @@ def train(data, lambda_max=0.7, epochs=3000, batch_size=2048, K=4, E1 = 1000):
 
     # Stein schedule
     E0 = 0  # DSM only until this epoch
-    # E1 = 1000  # ramp finishes here
+    E1 = 2000  # ramp finishes here
     for epoch in range(epochs + 1):
         perm = torch.randperm(data.size(0))
         batch = data[perm[:batch_size]]
