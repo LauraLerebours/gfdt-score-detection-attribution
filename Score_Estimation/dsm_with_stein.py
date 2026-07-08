@@ -35,14 +35,14 @@ def generate_scalar_data(F, a, b, c, sigma, dt, steps):
 # 3. KGMM-inspired Score Network
 # The paper suggests KGMM for low-dimensional systems
 class ScoreNet(nn.Module):
-    def __init__(self):
+    def __init__(self, size):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(1, 1024), 
-            nn.ReLU(), 
-            nn.Tanh(), 
-            nn.ReLU(), 
-            nn.Linear(1024, 1)
+            nn.Linear(1, size),
+            nn.ReLU(),
+            nn.Linear(size, size),
+            nn.ReLU(),
+            nn.Linear(size, 1)
         )
 
     def forward(self, x):
@@ -65,7 +65,7 @@ def stein_loss(model, clean_batch, mu, sigma_x, K=6):
 
 
 def train(data, lambda_max=0.7, epochs=3000, batch_size=2048, K=4):
-    model = ScoreNet()
+    model = ScoreNet(size=1024)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
     noise_scale = 0.05
 
