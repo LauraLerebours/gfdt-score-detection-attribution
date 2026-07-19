@@ -14,7 +14,7 @@ num_steps = 100000
 data = dsm_with_stein.generate_scalar_data(F, a, b, c, sigma, dt, num_steps)
 losses = []
 
-for i in range(10):
+for i in range(1):
     model, curr_loss = dsm_with_stein.train(data)
     losses.append(curr_loss)
 

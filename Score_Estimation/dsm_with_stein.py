@@ -41,7 +41,7 @@ class ScoreNet(nn.Module):
             nn.Linear(1, size),
             nn.ReLU(),
             nn.Linear(size, size),
-            nn.ReLU(),
+            nn.Tanh(),
             nn.Linear(size, 1)
         )
 
@@ -77,6 +77,7 @@ def train(data, lambda_max=0.7, epochs=3000, batch_size=2048, K=4):
     E0 = 0  # DSM only until this epoch
     E1 = 2000  # ramp finishes here
     for epoch in range(epochs + 1):
+        print(epoch)
         perm = torch.randperm(data.size(0))
         batch = data[perm[:batch_size]]
 
