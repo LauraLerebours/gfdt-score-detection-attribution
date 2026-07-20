@@ -47,6 +47,7 @@ class ScoreNet(nn.Module):
 
     def forward(self, x):
         return self.net(x)
+    
 
 
 def stein_loss(model, clean_batch, mu, sigma_x, K=6):

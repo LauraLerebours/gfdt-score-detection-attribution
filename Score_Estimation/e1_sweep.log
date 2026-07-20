@@ -1,0 +1,75 @@
+[1/35] E1=500 seed=0 loss=386.4200 (resumed)
+[2/35] E1=0 seed=3 loss=396.6007 (resumed)
+[3/35] E1=0 seed=4 loss=389.2590 (resumed)
+[4/35] E1=0 seed=0 loss=386.3635 (resumed)
+[5/35] E1=0 seed=2 loss=378.3071 (resumed)
+[6/35] E1=0 seed=1 loss=406.2759 (resumed)
+100000
+100000
+100000
+100000
+100000
+100000
+100000
+100000
+[7/35] E1=500 seed=4 loss=389.1944 (elapsed 4116s)
+[8/35] E1=500 seed=3 loss=396.3604 (elapsed 4121s)
+100000
+[9/35] E1=500 seed=2 loss=378.2052 (elapsed 4154s)
+100000
+[10/35] E1=1000 seed=1 loss=406.3744 (elapsed 4174s)
+[11/35] E1=1000 seed=3 loss=396.3494 (elapsed 4178s)
+[12/35] E1=500 seed=1 loss=406.3456 (elapsed 4178s)
+[13/35] E1=1000 seed=2 loss=378.1244 (elapsed 4187s)
+100000
+[14/35] E1=1000 seed=0 loss=386.5322 (elapsed 4194s)
+100000
+100000
+100000
+100000
+100000
+[15/35] E1=1500 seed=0 loss=386.4853 (elapsed 7849s)
+100000
+[16/35] E1=1500 seed=1 loss=406.3800 (elapsed 7881s)
+[17/35] E1=1000 seed=4 loss=389.2004 (elapsed 7886s)
+[18/35] E1=2000 seed=1 loss=406.3959 (elapsed 7901s)
+100000
+100000
+[19/35] E1=1500 seed=4 loss=389.2017 (elapsed 7918s)
+[20/35] E1=1500 seed=2 loss=378.0976 (elapsed 7926s)
+100000
+[21/35] E1=1500 seed=3 loss=396.4033 (elapsed 7935s)
+100000
+[22/35] E1=2000 seed=0 loss=386.4386 (elapsed 7950s)
+100000
+100000
+100000
+[23/35] E1=2000 seed=2 loss=378.1035 (elapsed 11646s)
+100000
+[24/35] E1=2000 seed=4 loss=389.1856 (elapsed 11698s)
+[25/35] E1=2000 seed=3 loss=396.5317 (elapsed 11702s)
+100000
+100000
+[26/35] E1=2500 seed=1 loss=406.3964 (elapsed 11748s)
+[27/35] E1=2500 seed=0 loss=386.4227 (elapsed 11752s)
+[28/35] E1=2500 seed=2 loss=378.1031 (elapsed 11770s)
+[29/35] E1=2500 seed=3 loss=396.6949 (elapsed 11780s)
+100000
+[30/35] E1=2500 seed=4 loss=389.1216 (elapsed 11787s)
+100000
+[31/35] E1=3000 seed=0 loss=386.6815 (elapsed 14212s)
+[32/35] E1=3000 seed=2 loss=378.2292 (elapsed 14238s)
+[33/35] E1=3000 seed=1 loss=406.4319 (elapsed 14241s)
+[34/35] E1=3000 seed=3 loss=396.5444 (elapsed 14254s)
+[35/35] E1=3000 seed=4 loss=389.0423 (elapsed 14258s)
+
+=== Summary ===
+E1=    0  mean=391.3612  std=9.4837
+E1=  500  mean=391.3051  std=9.5047
+E1= 1000  mean=391.3161  std=9.5233
+E1= 1500  mean=391.3136  std=9.5429
+E1= 2000  mean=391.3311  std=9.5656
+E1= 2500  mean=391.3477  std=9.5884
+E1= 3000  mean=391.3859  std=9.5259
+
+Total wall time: 14259s
