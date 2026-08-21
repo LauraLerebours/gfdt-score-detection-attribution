@@ -1,0 +1,204 @@
+
+import numpy as np
+import matplotlib.pyplot as plt
+import torch
+import dsm     
+
+# parameters
+F, a, b, c, s = 0.0, 1.0, 0.0, 1.0, 0.5
+dt = 0.05
+n_steps = 100
+N_real = 310
+eps_vals = [0.02, 0.04, 0.06, 0.08, 0.10, 0.12, 0.14, 0.16, 0.18, 0.20]
+
+np.random.seed(42)
+torch.manual_seed(42)
+
+def drift(x):
+    F, a, b, c = 0.0, 1.0, 0.0, 1.0
+    return  F + a*x + b*x**2 - c*x**3
+
+# long unperturbed trajectory
+N_long = 500000
+x = 0.0
+traj = np.zeros(N_long)
+score_exact = np.zeros(N_long)
+for i in range(N_long):
+    x += (F + a*x + b*x**2 - c*x**3)*dt + s*np.sqrt(dt)*np.random.randn()
+    traj[i] = x
+    score_exact[i] = 2*(F + a*x + b*x**2 - c*x**3) / s**2
+mu = traj.mean()
+traj_thin = traj[::200]
+
+observables = [traj, (traj-mu)**2, (traj-mu)**3]
+
+def stein_calibrate_score(x, score):
+    z = x - x.mean()
+    # enforce <score> = 0
+    score = score - score.mean()
+    # enforce <(X-mu) score> = -1
+    score = score * (-1.0 / np.mean(z * score))
+
+    return score
+
+# learned score
+data_tensor = torch.tensor(traj, dtype=torch.float32).view(-1, 1)
+score_model = dsm.train(data_tensor, dsm.ScoreNet(), epochs=2000, batch_size=1024)
+score_model.eval()
+score_dsm = np.zeros(N_long)
+batch = 10000
+with torch.no_grad():
+    for start in range(0, N_long, batch):
+        chunk = data_tensor[start:start+batch]
+        score_dsm[start:start+batch] = score_model(chunk).numpy().flatten()
+score_dsm = stein_calibrate_score(traj, score_dsm)
+score_exact = stein_calibrate_score(traj, score_exact)
+
+def make_response_kernel(observable, score, n_steps=100):
+    kernel = np.zeros(n_steps)
+    for lag in range(n_steps): #lag is an index for a specific time step. It is not in units of time
+        A = observable[lag:]
+        S = score[:len(A)]
+        kernel[lag] = -np.mean(A*S)
+    return kernel
+
+#forcing histories
+time_scale = np.arange(n_steps) * dt
+g1 = np.ones(n_steps)
+g2 = time_scale / time_scale[-1]
+forcing_histories = [g1, g2]
+
+def make_fingerprint(kernel, forcing_history, eps=1.0):
+    fingerprint = np.zeros(n_steps)
+    for n in range(n_steps):
+        value = 0.0
+        for t in range(n+1):
+            value += kernel[n-t]*forcing_history[t]
+        fingerprint[n] = eps*dt*value
+    return fingerprint
+
+
+
+def single_realization(eps, n_ens=1000, n_steps=100):
+    starting_indices = np.random.choice(len(traj_thin), size=n_ens, replace=False)
+    xu = traj_thin[starting_indices].copy()
+    xp = traj_thin[starting_indices].copy()
+    Y_1 = np.zeros(n_steps)
+    Y_2 = np.zeros(n_steps)
+    Y_3 = np.zeros(n_steps)
+    for t in range(n_steps):
+        noise = s*np.sqrt(dt)*np.random.randn(n_ens)
+        xu += drift(xu) * dt + noise
+        xp += (drift(xp) + eps*g1[t] + eps*g2[t])*dt + noise
+        Y_1[t] = xp.mean() - xu.mean()
+        Y_2[t] = ((xp-mu)**2).mean() - ((xu-mu)**2).mean()
+        Y_3[t] = ((xp-mu)**3).mean() - ((xu-mu)**3).mean()
+
+    Y = np.concatenate([Y_1, Y_2, Y_3])
+    return Y
+
+
+def build_realizations(eps, N_real):
+    Y_N = np.zeros((N_real, 3*n_steps))
+    for i in range(N_real):
+        Y_N[i] = single_realization(eps)
+    return Y_N
+
+def build_covariance(Y_N):
+    y_bar = Y_N.mean(axis=0)
+    sum = np.zeros((Y_N.shape[1], Y_N.shape[1]))
+    for i in range(len(Y_N)):
+        sum += np.outer((Y_N[i]-y_bar), (Y_N[i]-y_bar))
+    C_hat = 1/(len(Y_N)-1)*sum
+    return C_hat
+
+def shrink_covariance(C_hat, lam=1e-2):
+    d = C_hat.shape[0]
+    I_d = np.identity(d)
+    C_hat_shrink = (1-lam)*C_hat + (lam*np.trace(C_hat)/d)*I_d
+    return C_hat_shrink
+
+def GLS_beta_estimator(C_hat_shrink, H, y_i):
+    C_inv = np.linalg.inv(C_hat_shrink)
+    A = H.T @ C_inv @ H
+    beta_hats = np.linalg.inv(A) @ H.T @ C_inv @ y_i
+    return beta_hats
+
+#creating kernels, fingerprints, and design matrix H
+R_exact = []
+R_dsm = []
+for A in observables:
+    kernel_exact = make_response_kernel(A, score_exact)
+    kernel_dsm = make_response_kernel(A, score_dsm)
+    R_exact.append(kernel_exact)
+    R_dsm.append(kernel_dsm)
+R_exact = np.array(R_exact)
+R_dsm = np.array(R_dsm)
+
+
+# fingerprints for each forcing and each score
+X1_exact = np.concatenate([make_fingerprint(R_exact[m],   g1) for m in range(len(observables))])
+X2_exact = np.concatenate([make_fingerprint(R_exact[m],   g2) for m in range(len(observables))])
+X1_dsm = np.concatenate([make_fingerprint(R_dsm[m], g1) for m in range(len(observables))])
+X2_dsm = np.concatenate([make_fingerprint(R_dsm[m], g2) for m in range(len(observables))])
+
+
+betas_exact = [] #each element corresponding to the pair of betas from each epsilon value
+betas_dsm = []
+
+for eps in eps_vals:
+    H_exact = eps * np.column_stack([X1_exact, X2_exact])
+    H_dsm = eps * np.column_stack([X1_dsm, X2_dsm])
+    Y_N = build_realizations(eps, N_real)
+    C_hat = build_covariance(Y_N)
+    C_hat_shrink = shrink_covariance(C_hat)
+
+    C_inv = np.linalg.inv(C_hat_shrink)
+    A_inv_exact = np.linalg.inv(H_exact.T @ C_inv @ H_exact)
+    A_inv_dsm = np.linalg.inv(H_dsm.T @ C_inv @ H_dsm)
+
+    b_exact = []
+    b_dsm = []
+    for i in range(len(Y_N)):
+        b_exact.append(A_inv_exact @ H_exact.T @ C_inv @ Y_N[i])
+        b_dsm.append(A_inv_dsm @ H_dsm.T @ C_inv @ Y_N[i])
+
+    betas_exact.append(np.array(b_exact))    # (N_real, 2)
+    betas_dsm.append(np.array(b_dsm))
+
+betas_exact = np.array(betas_exact)          # (n_eps, N_real, 2)
+betas_dsm = np.array(betas_dsm)
+
+results = {
+    'exact': {
+        'mean': betas_exact.mean(axis=1),
+        'se': betas_exact.std(axis=1, ddof=1) / np.sqrt(N_real),
+    },
+    'dsm': {
+        'mean': betas_dsm.mean(axis=1),
+        'se': betas_dsm.std(axis=1, ddof=1) / np.sqrt(N_real),
+    },
+}
+
+x_pos = np.arange(len(eps_vals))
+width = 0.35
+fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
+
+for ax, score, title in zip(axes, ['exact', 'dsm'], ['Exact score', 'Learned score (DSM)']):
+    m = results[score]['mean']
+    se = results[score]['se']
+    ax.bar(x_pos - width/2, m[:, 0], width, color='blue', alpha=0.8,
+           yerr=1.96*se[:, 0], capsize=3, label='beta1 (step)')
+    ax.bar(x_pos + width/2, m[:, 1], width, color='red', alpha=0.8,
+           yerr=1.96*se[:, 1], capsize=3, label='beta2 (ramp)')
+    ax.axhline(1, color='gray', lw=0.8, ls='--', label='true beta=1')
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(['%.2f' % e for e in eps_vals], rotation=45, fontsize=8)
+    ax.set_xlabel('epsilon')
+    ax.set_ylabel('beta')
+    ax.set_title(title)
+    ax.legend(fontsize=8)
+
+plt.suptitle('Detection and Attribution (GLS): Exact vs DSM')
+plt.tight_layout()
+plt.show()
