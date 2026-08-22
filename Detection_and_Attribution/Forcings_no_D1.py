@@ -162,9 +162,6 @@ for i in range(N_real):
         forcing = h1_true[t]*xp + h2_true[t]*(xp**2 - m2)   #state-dependent
         xu += (drift(xu))*dt + noise
         xp += (drift(xp) + forcing)*dt + noise
-        # forcing = g_true[t] #state_independent
-        xu += drift(xu)*dt + noise
-        xp += (drift(xp) + forcing)*dt + noise
         Y[0, t] = xp.mean() - xu.mean() 
         Y[1, t] = ((xp-mu1)**2).mean() - ((xu-mu1)**2).mean()
         Y[2, t] = ((xp-mu1)**3).mean() - ((xu-mu1)**3).mean()
@@ -193,7 +190,12 @@ K1_dsm = build_operator(R_dsm[:, 0, :])
 K2_dsm = build_operator(R_dsm[:, 1, :])
 K_dsm  = np.hstack([K1_dsm, K2_dsm])
 
-#discrete-time derivative operator
+#discrete-time derivative operators
+D_1 = np.zeros((n_steps, n_steps))          #first difference
+for n in range(n_steps-1):
+    D_1[n, n] = -1.0
+    D_1[n, n+1] = 1.0
+
 D_2 = np.zeros((n_steps, n_steps))          #second difference 
 for n in range(n_steps-2):
     D_2[n, n] = 1.0
@@ -201,10 +203,13 @@ for n in range(n_steps-2):
     D_2[n, n+2] = 1.0
 
 Z = np.zeros((n_steps, n_steps))
+D1_blk = np.block([[D_1, Z], [Z, D_1]])     #(200, 200)
 D2_blk = np.block([[D_2, Z], [Z, D_2]])     #(200, 200)
 
-def deconvolve(K, Y, lam2):
-    lhs = K.T @ C_inv @ K + lam2*(D2_blk.T @ D2_blk)
+def deconvolve(K, Y, lam1, lam2):
+    lhs = (K.T @ C_inv @ K
+           + lam1*(D1_blk.T @ D1_blk)
+           + lam2*(D2_blk.T @ D2_blk))
     rhs = K.T @ C_inv @ Y
     return np.linalg.solve(lhs, rhs)
 
@@ -214,9 +219,9 @@ def deconvolve(K, Y, lam2):
 #     rhs = K.T @ C_inv @ Y
 #     return np.linalg.solve(lhs, rhs)
 
-lam2 = 1.0
-g_exact = deconvolve(K_exact, Y, lam2)
-g_dsm = deconvolve(K_dsm,   Y, lam2)
+lam1, lam2 = 1.0, 1.0
+g_exact = deconvolve(K_exact, Y, lam1, lam2)
+g_dsm = deconvolve(K_dsm,   Y, lam1, lam2)
 
 g1_exact, g2_exact = g_exact[:n_steps], g_exact[n_steps:]
 g1_dsm, g2_dsm = g_dsm[:n_steps],   g_dsm[n_steps:]
@@ -231,7 +236,9 @@ ax[1].plot(time_scale, h2_true, 'k', label='true $h_2$')
 ax[1].plot(time_scale, g2_exact, 'r--', label='exact')
 ax[1].plot(time_scale, g2_dsm, 'b--', label='DSM')
 ax[1].set_title('channel 2: $G_2=x^2-m_2$'); ax[1].set_xlabel('t'); ax[1].legend()
-plt.tight_layout(); plt.show()
+plt.tight_layout()
+fig.savefig('forcings_recovery.jpg', dpi=300, bbox_inches='tight')
+plt.show()
 
 #state independent plot
 # plt.figure(figsize=(7, 4))

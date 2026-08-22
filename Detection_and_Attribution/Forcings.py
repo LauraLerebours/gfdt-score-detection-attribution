@@ -162,9 +162,6 @@ for i in range(N_real):
         forcing = h1_true[t]*xp + h2_true[t]*(xp**2 - m2)   #state-dependent
         xu += (drift(xu))*dt + noise
         xp += (drift(xp) + forcing)*dt + noise
-        # forcing = g_true[t] #state_independent
-        xu += drift(xu)*dt + noise
-        xp += (drift(xp) + forcing)*dt + noise
         Y[0, t] = xp.mean() - xu.mean() 
         Y[1, t] = ((xp-mu1)**2).mean() - ((xu-mu1)**2).mean()
         Y[2, t] = ((xp-mu1)**3).mean() - ((xu-mu1)**3).mean()
