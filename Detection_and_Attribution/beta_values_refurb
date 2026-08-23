@@ -1,14 +1,23 @@
-import numpy as np
+import sys
+from pathlib import Path
+
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
-import dsm     
+
+SCORE_DIRECTORY = Path(__file__).resolve().parents[1] / "Score_Estimation"
+if str(SCORE_DIRECTORY) not in sys.path:
+    sys.path.insert(0, str(SCORE_DIRECTORY))
+import dsm_with_stein
+
+from control_covariance import estimate_control_covariance
 
 # parameters
 F, a, b, c, s = 0.0, 1.0, 0.0, 1.0, 0.5
 dt = 0.05
 n_steps = 100
 N_real = 310
-eps_vals = [0.02, 0.04, 0.06, 0.08, 0.10, 0.12, 0.14, 0.16, 0.18, 0.20]
+eps_vals = np.linspace(0.02, 0.60, 10)
 
 np.random.seed(42)
 torch.manual_seed(42)
@@ -27,9 +36,11 @@ for i in range(N_long):
     traj[i] = x
     score_exact[i] = 2*(F + a*x + b*x**2 - c*x**3) / s**2
 mu = traj.mean()
+mu2 = np.mean((traj - mu) ** 2)
+mu3 = np.mean((traj - mu) ** 3)
 traj_thin = traj[::200]
 
-observables = [traj, (traj-mu)**2, (traj-mu)**3]
+observables = [traj - mu, (traj - mu) ** 2 - mu2, (traj - mu) ** 3 - mu3]
 
 def stein_calibrate_score(x, score):
     z = x - x.mean()
@@ -42,7 +53,9 @@ def stein_calibrate_score(x, score):
 
 # learned score
 data_tensor = torch.tensor(traj, dtype=torch.float32).view(-1, 1)
-score_model = dsm.train(data_tensor, dsm.ScoreNet(), epochs=2000, batch_size=1024)
+score_model, _ = dsm_with_stein.train(
+    data_tensor, lambda_max=0.7, epochs=2000, batch_size=1024, K=4
+)
 score_model.eval()
 score_dsm = np.zeros(N_long)
 batch = 10000
@@ -51,7 +64,6 @@ with torch.no_grad():
         chunk = data_tensor[start:start+batch]
         score_dsm[start:start+batch] = score_model(chunk).numpy().flatten()
 score_dsm = stein_calibrate_score(traj, score_dsm)
-score_exact = stein_calibrate_score(traj, score_exact)
 
 def make_response_kernel(observable, score, n_steps=100):
     kernel = np.zeros(n_steps)
@@ -64,7 +76,7 @@ def make_response_kernel(observable, score, n_steps=100):
 #forcing histories
 time_scale = np.arange(n_steps) * dt
 g1 = np.ones(n_steps)
-g2 = time_scale / time_scale[-1]
+g2 = time_scale / (n_steps * dt)
 forcing_histories = [g1, g2]
 
 def make_fingerprint(kernel, forcing_history, eps=1.0):
@@ -103,20 +115,6 @@ def build_realizations(eps, N_real):
         Y_N[i] = single_realization(eps)
     return Y_N
 
-def build_covariance(Y_N):
-    y_bar = Y_N.mean(axis=0)
-    sum = np.zeros((Y_N.shape[1], Y_N.shape[1]))
-    for i in range(len(Y_N)):
-        sum += np.outer((Y_N[i]-y_bar), (Y_N[i]-y_bar))
-    C_hat = 1/(len(Y_N)-1)*sum
-    return C_hat
-
-def shrink_covariance(C_hat, lam=1e-2):
-    d = C_hat.shape[0]
-    I_d = np.identity(d)
-    C_hat_shrink = (1-lam)*C_hat + (lam*np.trace(C_hat)/d)*I_d
-    return C_hat_shrink
-
 def GLS_beta_estimator(C_hat_shrink, H, y_i):
     C_inv = np.linalg.inv(C_hat_shrink)
     A = H.T @ C_inv @ H
@@ -145,14 +143,30 @@ X2_dsm = np.concatenate([make_fingerprint(R_dsm[m], g2) for m in range(len(obser
 betas_exact = [] #each element corresponding to the pair of betas from each epsilon value
 betas_dsm = []
 
+# Estimate the covariance once from complete observable time series of
+# individual unforced trajectories.  No forced response enters this matrix.
+control_rng = np.random.default_rng(20260821)
+control_indices = control_rng.choice(len(traj_thin), size=1000, replace=False)
+C_hat_shrink, _, control_vectors = estimate_control_covariance(
+    traj_thin[control_indices],
+    drift=drift,
+    observables=(
+        lambda values: values - mu,
+        lambda values: (values - mu) ** 2 - mu2,
+        lambda values: (values - mu) ** 3 - mu3,
+    ),
+    n_steps=n_steps,
+    dt=dt,
+    sigma=s,
+    rng=control_rng,
+    alpha=1.0e-2,
+)
+C_inv = np.linalg.inv(C_hat_shrink)
+
 for eps in eps_vals:
     H_exact = eps * np.column_stack([X1_exact, X2_exact])
     H_dsm = eps * np.column_stack([X1_dsm, X2_dsm])
     Y_N = build_realizations(eps, N_real)
-    C_hat = build_covariance(Y_N)
-    C_hat_shrink = shrink_covariance(C_hat)
-
-    C_inv = np.linalg.inv(C_hat_shrink)
     A_inv_exact = np.linalg.inv(H_exact.T @ C_inv @ H_exact)
     A_inv_dsm = np.linalg.inv(H_dsm.T @ C_inv @ H_dsm)
 

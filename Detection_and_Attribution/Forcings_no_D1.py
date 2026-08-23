@@ -1,7 +1,16 @@
-import numpy as np
+import sys
+from pathlib import Path
+
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
+
+SCORE_DIRECTORY = Path(__file__).resolve().parents[1] / "Score_Estimation"
+if str(SCORE_DIRECTORY) not in sys.path:
+    sys.path.insert(0, str(SCORE_DIRECTORY))
 import dsm_with_stein
+
+from control_covariance import estimate_control_covariance
 
 s = 0.5
 dt = 0.05
@@ -111,32 +120,26 @@ for a in range(3):
 # ax[0, 0].legend()
 # plt.tight_layout(); plt.show()
 
-#covariance of residual internal variability
+# covariance of one complete observable time series from an unforced trajectory
 d = 3 * n_steps
-C_hat = np.zeros((d, d))
-y_responses = []
-for i in range(N_real):
-    idx = np.random.randint(0, len(traj_thin)-n_ens)
-    x_0 = traj_thin[idx:idx+n_ens].copy()
-    x_a = x_0.copy()
-    x_b = x_0.copy()
-    Y_noise = np.zeros((3, n_steps))
-    for t in range(n_steps):
-        noise_a = s*np.sqrt(dt)*np.random.randn(n_ens)
-        noise_b = s*np.sqrt(dt)*np.random.randn(n_ens)
-        x_a += (drift(x_a))*dt + noise_a
-        x_b += (drift(x_b))*dt + noise_b
-        Y_noise[0, t] = x_a.mean() - x_b.mean()
-        Y_noise[1, t] = ((x_a-mu1)**2).mean() - ((x_b-mu1)**2).mean()
-        Y_noise[2, t] = ((x_a-mu1)**3).mean() - ((x_b-mu1)**3).mean()
-    y_responses.append(np.concatenate([Y_noise[0], Y_noise[1], Y_noise[2]]))
-y_responses = np.array(y_responses)
-mu_Y = y_responses.mean(axis=0)
-for i in range(N_real):
-    C_hat += np.outer(y_responses[i] - mu_Y, y_responses[i] - mu_Y)
-C_hat /= (N_real-1)
-lam_shrink = 1e-2
-C_hat = (1-lam_shrink)*C_hat + lam_shrink*np.trace(C_hat)/d*np.eye(d)
+control_rng = np.random.default_rng(20260821)
+control_indices = control_rng.choice(len(traj_thin), size=n_ens, replace=False)
+C_hat, _, control_vectors = estimate_control_covariance(
+    traj_thin[control_indices],
+    drift=drift,
+    observables=(
+        lambda values: values - mu1,
+        lambda values: (values - mu1) ** 2 - mu2,
+        lambda values: (values - mu1) ** 3 - mu3,
+    ),
+    n_steps=n_steps,
+    dt=dt,
+    sigma=s,
+    rng=control_rng,
+    alpha=1.0e-2,
+)
+# C_hat / n_ens is the covariance of an ensemble mean.  The scalar n_ens
+# cancels from GLS point estimates and is omitted from this weighting matrix.
 C_inv = np.linalg.inv(C_hat)
 
 #forcing functions
@@ -190,12 +193,7 @@ K1_dsm = build_operator(R_dsm[:, 0, :])
 K2_dsm = build_operator(R_dsm[:, 1, :])
 K_dsm  = np.hstack([K1_dsm, K2_dsm])
 
-#discrete-time derivative operators
-D_1 = np.zeros((n_steps, n_steps))          #first difference
-for n in range(n_steps-1):
-    D_1[n, n] = -1.0
-    D_1[n, n+1] = 1.0
-
+# discrete-time second-difference operator
 D_2 = np.zeros((n_steps, n_steps))          #second difference 
 for n in range(n_steps-2):
     D_2[n, n] = 1.0
@@ -203,13 +201,10 @@ for n in range(n_steps-2):
     D_2[n, n+2] = 1.0
 
 Z = np.zeros((n_steps, n_steps))
-D1_blk = np.block([[D_1, Z], [Z, D_1]])     #(200, 200)
 D2_blk = np.block([[D_2, Z], [Z, D_2]])     #(200, 200)
 
-def deconvolve(K, Y, lam1, lam2):
-    lhs = (K.T @ C_inv @ K
-           + lam1*(D1_blk.T @ D1_blk)
-           + lam2*(D2_blk.T @ D2_blk))
+def deconvolve(K, Y, lam2):
+    lhs = K.T @ C_inv @ K + lam2*(D2_blk.T @ D2_blk)
     rhs = K.T @ C_inv @ Y
     return np.linalg.solve(lhs, rhs)
 
@@ -219,9 +214,9 @@ def deconvolve(K, Y, lam1, lam2):
 #     rhs = K.T @ C_inv @ Y
 #     return np.linalg.solve(lhs, rhs)
 
-lam1, lam2 = 1.0, 1.0
-g_exact = deconvolve(K_exact, Y, lam1, lam2)
-g_dsm = deconvolve(K_dsm,   Y, lam1, lam2)
+lam2 = 1.0
+g_exact = deconvolve(K_exact, Y, lam2)
+g_dsm = deconvolve(K_dsm, Y, lam2)
 
 g1_exact, g2_exact = g_exact[:n_steps], g_exact[n_steps:]
 g1_dsm, g2_dsm = g_dsm[:n_steps],   g_dsm[n_steps:]
