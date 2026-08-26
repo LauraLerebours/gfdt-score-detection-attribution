@@ -1,0 +1,14 @@
+integrating reference trajectory...
+mu_1 = 0.02543 | v_0 = 0.84753 | sigma_X = 0.92061
+epoch     0 | DSM   371.7778 | Stein 11.722000 | lambda 0.0000
+epoch   250 | DSM   375.3728 | Stein 1.748441 | lambda 0.0437
+epoch   500 | DSM   360.5610 | Stein 0.758505 | lambda 0.1750
+epoch   750 | DSM   368.9760 | Stein 1.344565 | lambda 0.3937
+epoch  1000 | DSM   394.5028 | Stein 0.325236 | lambda 0.7000
+epoch  1250 | DSM   356.7104 | Stein 0.481351 | lambda 0.7000
+epoch  1500 | DSM   393.8885 | Stein 0.079116 | lambda 0.7000
+epoch  1750 | DSM   387.3179 | Stein 0.352297 | lambda 0.7000
+epoch  2000 | DSM   386.5909 | Stein 2.507815 | lambda 0.7000
+epoch  2250 | DSM   403.6585 | Stein 1.498117 | lambda 0.7000
+epoch  2500 | DSM   386.8688 | Stein 0.248393 | lambda 0.7000
+epoch  2750 | DSM   370.5544 | Stein 0.242488 | lambda 0.7000
